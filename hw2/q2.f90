@@ -295,12 +295,11 @@ contains
         open(unit=1,file="method3.csv")
         write(1,*) "age,assets,consumption,income"
 
-        DO i=1,N-1
-            consumption(i)=R*b(i,1)+w(i)-b(i+1,1)
-            write(1,*) 16+i,",",b(i,1),",",consumption(i),",",w(i)
+        consumption(1)=w(1)-b(1,1)
+        DO i=1,N
+            consumption(i+1)=R*b(i,1)+w(i+1)-b(i+1,1)
+            write(1,*) 16+i,",",b(i,1),",",consumption(i+1),",",w(i+1)
         END DO
-        consumption(N)=R*b(N,1)+w(N)
-        write(1,*) 16+N,",",b(N,1),",",consumption(N),",",w(N)
         close(1)
     END SUBROUTINE q2aMethod3
 
@@ -320,7 +319,7 @@ contains
         print *, "Part b"
 
         DO i=1,N
-            Xv(i)=((beta*R)*(w(i)/w(i+1))**((1-eta)*(1-sigma)))**(-1/sigma)
+            Xv(i)=((beta2*R)*(w(i)/w(i+1))**((1-eta)*(1-sigma)))**(-1/sigma)
         END DO
 
         DO i=1,N
@@ -349,9 +348,10 @@ contains
 
         consumption(1)=eta*(w(1)-b(1,1))
         labour(1)=1-(1-eta)/eta*consumption(1)/w(1)
-        DO i=2,N
-            consumption(i)=eta*(R*b(i-1,1)+w(i)-b(i,1))
-            labour(i)=1-(1-eta)/eta*consumption(i)/w(i)
+
+        DO i=1,N
+            consumption(i+1)=eta*(R*b(i,1)+w(i+1)-b(i+1,1))
+            labour(i+1)=1-(1-eta)/eta*consumption(i+1)/w(i+1)
         END DO
 
         open(unit=1,file="partb.csv")
@@ -392,9 +392,19 @@ PROGRAM main
     use nrtype
     use hmwk2
     implicit none
-    REAL(DP), DIMENSION(N+2) :: w = 1.0D0
+    REAL(DP), DIMENSION(N+2) :: w
     PROCEDURE(template_function), POINTER :: func
-    w(N+2)=0.0D0
+    w =(/ 0.516_dp,0.560_dp,0.604_dp,0.648_dp,0.692_dp,0.736_dp,0.780_dp,&
+        & 0.831_dp,0.883_dp,0.934_dp,0.986_dp,1.037_dp,1.089_dp,1.140_dp,&
+        & 1.163_dp,1.186_dp,1.209_dp,1.232_dp,1.255_dp,1.278_dp,1.301_dp,&
+        & 1.324_dp,1.347_dp,1.370_dp,1.372_dp,1.374_dp,1.376_dp,1.378_dp,&
+        & 1.380_dp,1.382_dp,1.384_dp,1.386_dp,1.388_dp,1.390_dp,1.385_dp,&
+        & 1.379_dp,1.374_dp,1.368_dp,1.363_dp,1.357_dp,1.352_dp,1.346_dp,&
+        & 1.341_dp,1.335_dp,1.330_dp,1.304_dp,1.278_dp,1.252_dp,1.226_dp,&
+        & 1.201_dp,1.175_dp,1.149_dp,1.123_dp,1.097_dp,1.071_dp,1.045_dp,&
+        & 1.019_dp,0.994_dp,0.968_dp,0.942_dp,0.916_dp,0.890_dp,0.864_dp,&
+        & 0.838_dp,0.812_dp,0.786_dp,0.761_dp,0.735_dp,0.709_dp,0.683_dp,&
+        & 0.657_dp,0.631_dp,0.605_dp,0.579_dp,0.554_dp,0.000_dp /)
 
     func => forward
     CALL q2aMethod1(func, w)
