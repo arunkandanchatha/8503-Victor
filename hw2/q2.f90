@@ -4,7 +4,7 @@ MODULE nr
     implicit none
 
 contains
-        FUNCTION brent(ax,bx,cx,func,tol,xmin)
+    FUNCTION brent(ax,bx,cx,func,tol,xmin)
         USE nrtype; USE nrutil, ONLY : nrerror
         IMPLICIT NONE
         REAL(dp), INTENT(IN) :: ax,bx,cx,tol
@@ -168,10 +168,8 @@ MODULE  hmwk2
     use nrtype
     use nr
     implicit none
-    INTEGER(I8B), parameter :: NUM_ITER=10000000
-    INTEGER(KIND=8), save:: thetaCalls=0
-    REAL(DP), allocatable, dimension(:,:) :: intervals
-    LOGICAL, save :: firstTime = .true.
+    INTEGER, PARAMETER :: N=74,LDA=N,LDB=N,NRHS=1
+    REAL(DP), PARAMETER :: beta=1.0D0, beta2=0.96, eta=0.6, R=1.03D0, sigma=2.0D0
 
 contains
 
@@ -190,7 +188,184 @@ contains
     end subroutine sub_mystop
 
     !-------------------------------------
-    SUBROUTINE q1b2(func,startPoint,fret)
+    SUBROUTINE q2aMethod1(func, w)
+        !-------------------------------------
+
+        PROCEDURE(template_function), POINTER, INTENT(IN) :: func
+        REAL(DP), DIMENSION(N+2), INTENT(IN) :: w
+        REAL(DP) :: fret
+        INTEGER :: i,j
+        REAL(DP) :: startPoint = 0.5D0, x
+        REAL(DP), DIMENSION(N+2) :: assets, consumption
+
+        print *, "-------------------------------------"
+        print *, "forward"
+        CALL mybrent(func, startPoint,fret)
+
+        x=startPoint
+        assets(1)=0
+        assets(2)=x
+        consumption(1)=R*assets(1)+w(1)-assets(2)
+
+        open(unit=1,file="method1.csv")
+        write(1,*) "age,assets,consumption,income"
+        write(1,*) "16,0,",consumption(1),",",w(1)
+
+        DO i=3,N+2
+            assets(i)=assets(i-1)*(R+(beta*R)**(1/sigma))+w(i-1)-(beta*R)**(1/sigma)*(w(i-2)+R*assets(i-2))
+            consumption(i-1)=R*assets(i-1)+w(i-1)-assets(i)
+            write(1,*) 14+i,",",assets(i-1),",",consumption(i-1),",",w(i-1)
+        END DO
+
+        write(1,*) 14+i,",",assets(i-1),",",consumption(i-1),",",w(i-1)
+        close(1)
+    END SUBROUTINE q2aMethod1
+
+    !-------------------------------------
+    SUBROUTINE q2aMethod2(func, w)
+        !-------------------------------------
+
+        PROCEDURE(template_function), POINTER, INTENT(IN) :: func
+        REAL(DP), DIMENSION(N+2), INTENT(IN) :: w
+        REAL(DP) :: fret
+        INTEGER :: i,j
+        REAL(DP) :: startPoint = 0.5D0, x
+        REAL(DP), DIMENSION(N+2) :: assets, consumption
+
+        print *, "-------------------------------------"
+        print *, "backward"
+        CALL mybrent(func, startPoint,fret)
+
+        x=startPoint
+        assets(N+2)=0
+        assets(N+1)=x
+
+        open(unit=1,file="method2.csv")
+        write(1,*) "age,assets,consumption,income"
+
+        DO i=N+1,2,-1
+            consumption(i)=R*assets(i)+w(i)-assets(i+1)
+            assets(i-1)=1/R*(assets(i)-w(i-1)+(beta*R)**(-1/sigma)*(R*assets(i)+w(i)-assets(i+1)))
+            write(1,*) 15+i,",",assets(i),",",consumption(i),",",w(i)
+        END DO
+
+        consumption(1)=R*assets(i)+w(1)-assets(2)
+        write(1,*) "16,",assets(1),",",consumption(1),",",w(1)
+        close(1)
+    END SUBROUTINE q2aMethod2
+
+    !-------------------------------------
+    SUBROUTINE q2aMethod3(w)
+        !-------------------------------------
+
+        REAL(DP), DIMENSION(N+2), INTENT(IN) :: w
+        REAL(DP), DIMENSION(LDA,N) :: A
+        REAL(DP), DIMENSION(LDB,NRHS) :: b
+        REAL(DP), DIMENSION(N) :: consumption
+        INTEGER :: IPIV( N )
+        INTEGER :: INFO,i,j
+
+        print *, "-------------------------------------"
+        print *, "Brute Force"
+
+        DO i=1,N
+            DO j=1,N
+                if(i==j)then
+                    A(j,i)=-1-(beta*R)**(-1/sigma)*R
+                else if (j==(i+1))then
+                    A(j,i)=R
+                else if (j==(i-1)) then
+                    A(j,i)=(beta*R)**(-1/sigma)
+                else
+                    A(j,i)=0.0D0
+                end if
+            END DO
+            b(i,1)=(beta*R)**(-1/sigma)*w(i+1)-w(i)
+        END DO
+
+        CALL DGESV( N, NRHS, A, LDA, IPIV, b, LDB, INFO )
+
+        IF( INFO.GT.0 ) THEN
+            WRITE(*,*)'The diagonal element of the triangular factor of A,'
+            WRITE(*,*)'U(',INFO,',',INFO,') is zero, so that'
+            WRITE(*,*)'A is singular; the solution could not be computed.'
+            STOP
+        END IF
+
+        open(unit=1,file="method3.csv")
+        write(1,*) "age,assets,consumption,income"
+
+        DO i=1,N-1
+            consumption(i)=R*b(i,1)+w(i)-b(i+1,1)
+            write(1,*) 16+i,",",b(i,1),",",consumption(i),",",w(i)
+        END DO
+        consumption(N)=R*b(N,1)+w(N)
+        write(1,*) 16+N,",",b(N,1),",",consumption(N),",",w(N)
+        close(1)
+    END SUBROUTINE q2aMethod3
+
+    !-------------------------------------
+    SUBROUTINE q2b(w)
+        !-------------------------------------
+
+        REAL(DP), DIMENSION(N+2), INTENT(IN) :: w
+        REAL(DP), DIMENSION(LDA,N) :: A
+        REAL(DP), DIMENSION(LDB,NRHS) :: b
+        REAL(DP), DIMENSION(N) :: Xv
+        REAL(DP), DIMENSION(N+1) ::consumption,labour
+        INTEGER :: IPIV( N )
+        INTEGER :: INFO,i,j
+
+        print *, "-------------------------------------"
+        print *, "Part b"
+
+        DO i=1,N
+            Xv(i)=((beta*R)*(w(i)/w(i+1))**((1-eta)*(1-sigma)))**(-1/sigma)
+        END DO
+
+        DO i=1,N
+            DO j=1,N
+                if(i==j)then
+                    A(j,i)=-1-Xv(j)*R
+                else if (j==(i+1))then
+                    A(j,i)=R
+                else if (j==(i-1)) then
+                    A(j,i)=Xv(j)
+                else
+                    A(j,i)=0.0D0
+                end if
+            END DO
+            b(i,1)=Xv(i)*w(i+1)-w(i)
+        END DO
+
+        CALL DGESV( N, NRHS, A, LDA, IPIV, b, LDB, INFO )
+
+        IF( INFO.GT.0 ) THEN
+            WRITE(*,*)'The diagonal element of the triangular factor of A,'
+            WRITE(*,*)'U(',INFO,',',INFO,') is zero, so that'
+            WRITE(*,*)'A is singular; the solution could not be computed.'
+            STOP
+        END IF
+
+        consumption(1)=eta*(w(1)-b(1,1))
+        labour(1)=1-(1-eta)/eta*consumption(1)/w(1)
+        DO i=2,N
+            consumption(i)=eta*(R*b(i-1,1)+w(i)-b(i,1))
+            labour(i)=1-(1-eta)/eta*consumption(i)/w(i)
+        END DO
+
+        open(unit=1,file="partb.csv")
+        write(1,*) "age,assets,consumption,labour,income"
+        write(1,*) "16,0,",consumption(1),",",labour(1),",",w(1)
+        DO i=1,N
+            write(1,*) 16+i,",",b(i,1),",",consumption(i+1),",",labour(i+1),",",w(i+1)
+        END DO
+        close(1)
+    END SUBROUTINE q2b
+
+
+    !-------------------------------------
+    SUBROUTINE mybrent(func,startPoint,fret)
         !-------------------------------------
 
         !use brent
@@ -209,7 +384,7 @@ contains
         call mnbrak(temp1, temp2, temp3, f1,f2,f3, func)
         fret=brent(temp1, temp2, temp3, func, tol, startPoint)
 
-    END SUBROUTINE q1b2
+    END SUBROUTINE mybrent
 
 END MODULE hmwk2
 
@@ -217,90 +392,20 @@ PROGRAM main
     use nrtype
     use hmwk2
     implicit none
-    REAL(DP) :: fret
-    REAL(DP), DIMENSION(76) :: w = 1.0D0
+    REAL(DP), DIMENSION(N+2) :: w = 1.0D0
     PROCEDURE(template_function), POINTER :: func
-    PROCEDURE(template_derivative), POINTER :: deriv
-    INTEGER :: i,j
-    REAL(DP) :: startPoint = 0.5D0
-    REAL(DP) :: beta=1.0D0, R=1.03D0, sigma=2.0D0,x
-    REAL(DP), DIMENSION(76) :: assets, consumption
-    INTEGER, PARAMETER :: N=74,LDA=74,LDB=74,NRHS=1
-    REAL(DP), DIMENSION(LDA,N) :: A
-    REAL(DP), DIMENSION(LDB,NRHS) :: b
-    INTEGER :: IPIV( N )
-    INTEGER :: INFO
-    w(76)=0.0D0
+    w(N+2)=0.0D0
 
-    print *, "-------------------------------------"
-    print *, "forward"
     func => forward
-    CALL q1b2(func, startPoint,fret)
+    CALL q2aMethod1(func, w)
 
-    x=startPoint
-    assets(1)=0
-    assets(2)=x
-    consumption(1)=R*assets(1)+w(1)-assets(2)
-    print *,"age:16 assets:0 consumption:",consumption(1)
-
-    DO i=3,76
-      assets(i)=assets(i-1)*(R+(beta*R)**(1/sigma))+w(i-1)-(beta*R)**(1/sigma)*(w(i-2)+R*assets(i-2))
-      consumption(i-1)=R*assets(i-1)+w(i-1)-assets(i)
-      print *,"age:",14+i," assets: ",assets(i-1)," consumption: ",consumption(i-1)
-    END DO
-
-    print *,"age:",14+i," assets: ",assets(i-1)," consumption: ",consumption(i-1)
-
-
-    print *, "-------------------------------------"
-    print *, "Backward"
     func => backward
-    CALL q1b2(func, startPoint,fret)
+    CALL q2aMethod2(func, w)
 
-    x=startPoint
-    assets(76)=0
-    assets(75)=x
+    CALL q2aMethod3(w)
 
-    DO i=75,2,-1
-      consumption(i)=R*assets(i)+w(i)-assets(i+1)
-      assets(i-1)=1/R*(assets(i)-w(i-1)+(beta*R)**(-1/sigma)*(R*assets(i)+w(i)-assets(i+1)))
-      print *,"age:",15+i," assets: ",assets(i)," consumption: ",consumption(i)
-    END DO
+    CALL q2b(w)
 
-    consumption(1)=R*assets(i)+w(1)-assets(2)
-    print *,"age:",16," assets: ",assets(1)," consumption: ",consumption(1)
-
-    print *, "-------------------------------------"
-    print *, "Brute Force"
-
-    DO i=1,N
-        DO j=1,N
-            if(i==j)then
-                A(j,i)=-1-(beta*R)**(-1/sigma)*R
-            else if (j==(i+1))then
-                A(j,i)=R
-            else if (j==(i-1)) then
-                A(j,i)=(beta*R)**(-1/sigma)
-            else
-                A(j,i)=0.0D0
-            end if
-        END DO
-
-        b(i,1)=(beta*R)**(-1/sigma)*w(i+1)-w(i)
-    END DO
-
-    CALL DGESV( N, NRHS, A, LDA, IPIV, b, LDB, INFO )
-
-      IF( INFO.GT.0 ) THEN
-         WRITE(*,*)'The diagonal element of the triangular factor of A,'
-         WRITE(*,*)'U(',INFO,',',INFO,') is zero, so that'
-         WRITE(*,*)'A is singular; the solution could not be computed.'
-         STOP
-      END IF
-
-    DO i=1,N
-        print *,"age: ",16+i," assets: ",b(i,1)
-    END DO
 CONTAINS
 
     !-----------------
@@ -310,7 +415,7 @@ CONTAINS
         ! INPUTS: point - the value at which we are evaluating the function
         ! OUTPUTS: y - the value of the function at that point
         REAL(DP), INTENT(IN) :: point
-        REAL(DP), DIMENSION(76) :: assets
+        REAL(DP), DIMENSION(N+2) :: assets
         REAL(DP) :: x,y,z
         INTEGER :: i
 
@@ -318,11 +423,11 @@ CONTAINS
         assets(1)=0
         assets(2)=x
 
-        DO i=3,76
-          assets(i)=assets(i-1)*(R+(beta*R)**(1/sigma))+w(i-1)-(beta*R)**(1/sigma)*(w(i-2)+R*assets(i-2))
+        DO i=3,N+2
+            assets(i)=assets(i-1)*(R+(beta*R)**(1/sigma))+w(i-1)-(beta*R)**(1/sigma)*(w(i-2)+R*assets(i-2))
         END DO
 
-        z=abs(assets(76))
+        z=abs(assets(N+2))
     END FUNCTION forward
 
     !-----------------
@@ -332,16 +437,16 @@ CONTAINS
         ! INPUTS: point - the value at which we are evaluating the function
         ! OUTPUTS: y - the value of the function at that point
         REAL(DP), INTENT(IN) :: point
-        REAL(DP), DIMENSION(76) :: assets
+        REAL(DP), DIMENSION(N+2) :: assets
         REAL(DP) :: x,y,z
         INTEGER :: i
 
         x=point
-        assets(76)=0
-        assets(75)=x
+        assets(N+2)=0
+        assets(N+1)=x
 
-        DO i=74,1,-1
-          assets(i)=1/R*(assets(i+1)-w(i)+(beta*R)**(-1/sigma)*(R*assets(i+1)+w(i+1)-assets(i+2)))
+        DO i=N,1,-1
+            assets(i)=1/R*(assets(i+1)-w(i)+(beta*R)**(-1/sigma)*(R*assets(i+1)+w(i+1)-assets(i+2)))
         END DO
 
         z=abs(assets(1))
