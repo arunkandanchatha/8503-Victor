@@ -194,7 +194,7 @@ contains
         PROCEDURE(template_function), POINTER, INTENT(IN) :: func
         REAL(DP), DIMENSION(N+2), INTENT(IN) :: w
         REAL(DP) :: fret
-        INTEGER :: i,j
+        INTEGER :: i
         REAL(DP) :: startPoint = 0.5D0, x
         REAL(DP), DIMENSION(N+2) :: assets, consumption
 
@@ -228,7 +228,7 @@ contains
         PROCEDURE(template_function), POINTER, INTENT(IN) :: func
         REAL(DP), DIMENSION(N+2), INTENT(IN) :: w
         REAL(DP) :: fret
-        INTEGER :: i,j
+        INTEGER :: i
         REAL(DP) :: startPoint = 0.5D0, x
         REAL(DP), DIMENSION(N+2) :: assets, consumption
 
@@ -426,7 +426,7 @@ CONTAINS
         ! OUTPUTS: y - the value of the function at that point
         REAL(DP), INTENT(IN) :: point
         REAL(DP), DIMENSION(N+2) :: assets
-        REAL(DP) :: x,y,z
+        REAL(DP) :: x,z
         INTEGER :: i
 
         x=point
@@ -448,7 +448,7 @@ CONTAINS
         ! OUTPUTS: y - the value of the function at that point
         REAL(DP), INTENT(IN) :: point
         REAL(DP), DIMENSION(N+2) :: assets
-        REAL(DP) :: x,y,z
+        REAL(DP) :: x,z
         INTEGER :: i
 
         x=point
